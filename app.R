@@ -68,13 +68,14 @@ server <- function(input, output) {
                    ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100)  %>%
             arrange(desc(ratio_casos_habitantes)) %>%
             select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas) %>%
-            rename(c(CCAA = COMUNIDADES,"Población" = Habitantes,
+            rename(CCAA = COMUNIDADES,
+                     "Población" = Habitantes,
                      "Camas Totales" = total_camas,
                      "Camas Libres Estimadas" = camas_libres,
                      "Casos Detectados" = casos,
                      "Casos Reales Estimados" = estimacion_casos,
                      "Casos por cada 100 habitantes" = ratio_casos_habitantes,
-                     "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas))
+                     "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas)
         
         filtered
     })
