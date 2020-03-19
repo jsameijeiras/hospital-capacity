@@ -1,7 +1,7 @@
 library(shiny)
-library(tidyverse)
-library(readxl)
-library(httr)
+library(readr)
+library(magrittr)
+library(dplyr)
 
 
 print("libraries lodaded")
@@ -15,17 +15,10 @@ print("get executed")
 selected_date =  as.character(lubridate::today() - 1, format = "%d/%m/%Y")
 
 print("read file cnh")
-#CNH_2019 <- read_excel(tf,  col_types = c("text", "text", "text", 
-#                                                    "text", "text", "text", "text", "text", 
-#                                                    "text", "text", "text", "text", "text", 
-#                                                    "numeric", "text", "text", "text", 
-#                                                    "text", "text", "text", "text", "text", 
-#                                                    "text", "text", "text", "text", "text", 
-#                                                    "text", "text", "text", "text", "text", 
-#                                                    "text", "text", "text", "text", "text", #                                                    "text", "text", "text", "text", "text", 
-#                                                    "text"))  
 
-#X2915 <- read_excel(poblacion_ine)
+CNH_2019 <- read_csv("https://raw.githubusercontent.com/jsameijeiras/hospital-capacity/master/CNH_2019.csv")
+
+X2915 <- read_csv("https://raw.githubusercontent.com/jsameijeiras/hospital-capacity/master/ine_poblacion_CCAA.csv")
 
 
 casos_covid_CCAA <- read_csv("https://raw.githubusercontent.com/datadista/datasets/master/COVID%2019/ccaa_covid19_casos.csv") %>%
@@ -74,7 +67,14 @@ server <- function(input, output) {
             mutate(ratio_casos_habitantes = (estimacion_casos/Habitantes) * 100,
                    ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100)  %>%
             arrange(desc(ratio_casos_habitantes)) %>%
-            select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas)
+            select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas) %>%
+            rename(c(CCAA = COMUNIDADES,"Población" = Habitantes,
+                     "Camas Totales" = total_camas,
+                     "Camas Libres Estimadas" = camas_libres,
+                     "Casos Detectados" = casos,
+                     "Casos Reales Estimados" = estimacion_casos,
+                     "Casos por cada 100 habitantes" = ratio_casos_habitantes,
+                     "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas))
         
         filtered
     })
