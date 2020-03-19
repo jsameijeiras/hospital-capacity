@@ -1,33 +1,31 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
 library(shiny)
 library(tidyverse)
 library(readxl)
 library(httr)
 
-GET("https://www.mscbs.gob.es/ciudadanos/prestaciones/centrosServiciosSNS/hospitales/docs/CNH_2019.xls", write_disk(tf <- tempfile(fileext = ".xls")))
+
+print("libraries lodaded")
+
+#GET("https://www.mscbs.gob.es/ciudadanos/prestaciones/centrosServiciosSNS/hospitales/docs/CNH_2019.xls", write_disk(tf <- tempfile(fileext = ".xls")))
+
+#GET("https://github.com/jsameijeiras/hospital-capacity/blob/master/ine_poblacion_CCAA.xls?raw=true", write_disk(poblacion_ine <- tempfile(fileext = ".xls")))
+
+print("get executed")
 
 selected_date =  as.character(lubridate::today() - 1, format = "%d/%m/%Y")
 
-CNH_2019 <- read_excel(tf,  col_types = c("text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "numeric", "text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "text", "text", "text", "text", "text", 
-                                                    "text"))
+print("read file cnh")
+#CNH_2019 <- read_excel(tf,  col_types = c("text", "text", "text", 
+#                                                    "text", "text", "text", "text", "text", 
+#                                                    "text", "text", "text", "text", "text", 
+#                                                    "numeric", "text", "text", "text", 
+#                                                    "text", "text", "text", "text", "text", 
+#                                                    "text", "text", "text", "text", "text", 
+#                                                    "text", "text", "text", "text", "text", 
+#                                                    "text", "text", "text", "text", "text", #                                                    "text", "text", "text", "text", "text", 
+#                                                    "text"))  
 
-X2915 <- read_excel("C:/Users/jose/Downloads/2915.xls")
+#X2915 <- read_excel(poblacion_ine)
 
 
 casos_covid_CCAA <- read_csv("https://raw.githubusercontent.com/datadista/datasets/master/COVID%2019/ccaa_covid19_casos.csv") %>%
@@ -43,13 +41,12 @@ casos_fallecidos_covid_CCAA <- casos_covid_CCAA %>%
     mutate(fatality_rate = fallecidos/casos * 100) 
 
 habitante_camas_df <- CNH_2019 %>% 
-    filter(`FINALIDAD ASISITENCIAL` != "PSIQUIÁTRICO") %>%
     group_by(COMUNIDADES,CODAUTO) %>%
     summarise(total_camas = sum(NCAMAS)) %>%
     left_join(X2915) %>%
     select(CODAUTO,total_camas,Habitantes)
 
-# Define UI for application that draws a histogram
+# User Interface
 ui <- fluidPage(
     titlePanel("Como de capacitados estaban nuestros hospitales"),
     sidebarLayout(
@@ -65,7 +62,7 @@ ui <- fluidPage(
     )
 )
 
-# Define server logic required to draw a histogram
+# Server logic
 server <- function(input, output) {
     
     output$results <- renderTable({
@@ -83,5 +80,5 @@ server <- function(input, output) {
     })
 }
 
-# Run the application 
+# Run the application
 shinyApp(ui = ui, server = server)
