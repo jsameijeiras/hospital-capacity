@@ -39,4 +39,4 @@ vignettes/*.pdf
 .Renviro
 
 /rsconnect
-*.dcf
+.dcf
