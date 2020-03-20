@@ -2,7 +2,8 @@ library(shiny)
 library(readr)
 library(magrittr)
 library(dplyr)
-
+library(kableExtra)
+library(knitr)
 
 print("libraries lodaded")
 
@@ -41,14 +42,12 @@ habitante_camas_df <- CNH_2019 %>%
 
 # User Interface
 ui <- fluidPage(
-    titlePanel("Como de capacitados estaban nuestros hospitales"),
+    titlePanel("Capacidad de Respuesta COVID-19 en España"),
     sidebarLayout(
         sidebarPanel(
             sliderInput("mortalityrate", "Ratio de Fallecidos", 0, 0.5, 0.03),
             sliderInput("severityyrate", "Ratio de Hospitalizados", 0, 1, 0.23),
-            sliderInput("originalocc", "% de Camas libres en Hospital", 0, 1, 0.65),
-            selectInput("countryInput", "Country",
-                        choices = c("SPAIN"))
+            sliderInput("originalocc", "% de Camas libres en Hospital", 0, 1, 0.65)
         ),
         
         mainPanel(tableOutput("results"))
@@ -58,27 +57,31 @@ ui <- fluidPage(
 # Server logic
 server <- function(input, output) {
     
-    output$results <- renderTable({
-        filtered <-
+    output$results <- function(){
             habitante_camas_df %>%
             left_join(casos_fallecidos_covid_CCAA, by = c("CODAUTO" = "cod_ine")) %>% 
-            mutate(estimacion_casos = (fallecidos/input$mortalityrate[1])*2^4,
+            mutate(estimacion_casos = ifelse(fallecidos > 0, 
+                                             (fallecidos/input$mortalityrate[1])*2^4,
+                                             casos),
                    camas_libres = total_camas*input$originalocc[1]) %>%
             mutate(ratio_casos_habitantes = (estimacion_casos/Habitantes) * 100,
-                   ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100)  %>%
+                   ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100) %>%
             arrange(desc(ratio_casos_habitantes)) %>%
             select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas) %>%
-            rename(CCAA = COMUNIDADES,
+            rename("Comunidad Autónoma" = COMUNIDADES,
                      "Población" = Habitantes,
                      "Camas Totales" = total_camas,
                      "Camas Libres Estimadas" = camas_libres,
                      "Casos Detectados" = casos,
                      "Casos Reales Estimados" = estimacion_casos,
                      "Casos por cada 100 habitantes" = ratio_casos_habitantes,
-                     "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas)
+                     "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas) %>%
+            knitr::kable("html", digits = 0, format.args = list(big.mark = ".", 
+                                                                scientific = FALSE)) %>%
+            kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+            footnote(general = "Codigo original de @jsmeijeiras. Datos del Ministerio de Sanidad y Datadista")
         
-        filtered
-    })
+    }
 }
 
 # Run the application
