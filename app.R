@@ -4,6 +4,7 @@ library(magrittr)
 library(dplyr)
 library(kableExtra)
 library(knitr)
+library(ggplot2)
 
 print("libraries lodaded")
 
@@ -50,15 +51,23 @@ ui <- fluidPage(
             sliderInput("originalocc", "% de Camas libres en Hospital", 0, 1, 0.65)
         ),
         
-        mainPanel(tableOutput("results"))
+        mainPanel(tabsetPanel(type = "tabs",
+                              tabPanel("Gráfico", plotOutput("plot")),
+                              tabPanel("Tabla", tableOutput("results")
+                                       )
+                              )
+                  )
     )
 )
 
 # Server logic
 server <- function(input, output) {
     
+    
+    
     output$results <- function(){
-            habitante_camas_df %>%
+        
+        analisis <- habitante_camas_df %>%
             left_join(casos_fallecidos_covid_CCAA, by = c("CODAUTO" = "cod_ine")) %>% 
             mutate(estimacion_casos = ifelse(fallecidos > 0, 
                                              (fallecidos/input$mortalityrate[1])*2^4,
@@ -67,7 +76,9 @@ server <- function(input, output) {
             mutate(ratio_casos_habitantes = (estimacion_casos/Habitantes) * 100,
                    ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100) %>%
             arrange(desc(ratio_casos_habitantes)) %>%
-            select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas) %>%
+            select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas)
+            
+        analisis%>%
             rename("Comunidad Autónoma" = COMUNIDADES,
                      "Población" = Habitantes,
                      "Camas Totales" = total_camas,
@@ -76,12 +87,37 @@ server <- function(input, output) {
                      "Casos Reales Estimados" = estimacion_casos,
                      "Casos por cada 100 habitantes" = ratio_casos_habitantes,
                      "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas) %>%
-            knitr::kable("html", digits = 0, format.args = list(big.mark = ".", 
+            knitr::kable("html", digits = 1, format.args = list(big.mark = ".", 
+                                                                decimal.mark = ",",
                                                                 scientific = FALSE)) %>%
             kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
             footnote(general = "Codigo original de @jsmeijeiras. Datos del Ministerio de Sanidad y Datadista")
         
     }
+    
+    output$plot <- renderPlot({
+        
+        analisis <- habitante_camas_df %>%
+            left_join(casos_fallecidos_covid_CCAA, by = c("CODAUTO" = "cod_ine")) %>% 
+            mutate(estimacion_casos = ifelse(fallecidos > 0, 
+                                             (fallecidos/input$mortalityrate[1])*2^4,
+                                             casos),
+                   camas_libres = total_camas*input$originalocc[1]) %>%
+            mutate(ratio_casos_habitantes = (estimacion_casos/Habitantes) * 100,
+                   ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100) %>%
+            arrange(desc(ocupacion_camas)) %>%
+            select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas)
+        
+        ggplot(data=analisis, aes(x=reorder(COMUNIDADES, ocupacion_camas), y = ocupacion_camas)) +
+            geom_bar(stat="identity", fill = "#7ebec0") +
+            geom_hline(yintercept=100, linetype="dashed", color = "red") +
+            coord_flip() +
+            theme_minimal() +
+            labs(x = "", y = "% Ocupacion Camas disponibles")
+            
+            
+        
+    })
 }
 
 # Run the application
