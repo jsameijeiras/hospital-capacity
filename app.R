@@ -5,6 +5,8 @@ library(dplyr)
 library(kableExtra)
 library(knitr)
 library(ggplot2)
+library(deSolve)
+
 
 print("libraries lodaded")
 
@@ -46,19 +48,22 @@ ui <- fluidPage(
     titlePanel("Capacidad de Respuesta COVID-19 en España"),
     sidebarLayout(
         sidebarPanel(
-            sliderInput("mortalityrate", "Ratio de Fallecidos", 0, 0.5, 0.03),
+            sliderInput("mortalityrate", "Ratio de Fallecidos", 0.01, 0.5, 0.03),
             sliderInput("severityyrate", "Ratio de Hospitalizados", 0, 1, 0.23),
-            sliderInput("originalocc", "% de Camas libres en Hospital", 0, 1, 0.65)
+            sliderInput("originalocc", "% de Camas libres en Hospital", 0, 1, 0.65),
+            sliderInput("efe", "% of recovered that can get sick again", 0, 1, 0.96),
+            sliderInput("r0", "R0 of the COVID-19", 2.5, 4.5, 3.5)
         ),
         
         mainPanel(tabsetPanel(type = "tabs",
                               tabPanel("Gráfico", plotOutput("plot")),
-                              tabPanel("Tabla", tableOutput("results")
-                                       )
-                              )
-                  )
+                              tabPanel("Tabla", tableOutput("results")),
+                              tabPanel("Model SIRS", plotOutput("sirs"))
+        )
+        )
     )
 )
+
 
 # Server logic
 server <- function(input, output) {
@@ -77,21 +82,21 @@ server <- function(input, output) {
                    ocupacion_camas = (estimacion_casos * input$severityyrate[1])/camas_libres * 100) %>%
             arrange(desc(ratio_casos_habitantes)) %>%
             select(COMUNIDADES,Habitantes,total_camas, camas_libres,casos,estimacion_casos, ratio_casos_habitantes, ocupacion_camas)
-            
+        
         analisis%>%
             rename("Comunidad Autónoma" = COMUNIDADES,
-                     "Población" = Habitantes,
-                     "Camas Totales" = total_camas,
-                     "Camas Libres Estimadas" = camas_libres,
-                     "Casos Detectados" = casos,
-                     "Casos Reales Estimados" = estimacion_casos,
-                     "Casos por cada 100 habitantes" = ratio_casos_habitantes,
-                     "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas) %>%
+                   "Población" = Habitantes,
+                   "Camas Totales" = total_camas,
+                   "Camas Libres Estimadas" = camas_libres,
+                   "Casos Detectados" = casos,
+                   "Casos Reales Estimados" = estimacion_casos,
+                   "Casos por cada 100 habitantes" = ratio_casos_habitantes,
+                   "Porcentaje de Ocupacion de Camas Libres" = ocupacion_camas) %>%
             knitr::kable("html", digits = 1, format.args = list(big.mark = ".", 
                                                                 decimal.mark = ",",
                                                                 scientific = FALSE)) %>%
             kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
-            footnote(general = "Codigo original de @jsmeijeiras. Datos del Ministerio de Sanidad y Datadista")
+            footnote(general = "Codigo original de @jsameijeiras. Datos del Ministerio de Sanidad y Datadista")
         
     }
     
@@ -113,11 +118,107 @@ server <- function(input, output) {
             geom_hline(yintercept=100, linetype="dashed", color = "red") +
             coord_flip() +
             theme_minimal() +
-            labs(x = "", y = "% Ocupacion Camas disponibles")
-            
-            
+            labs(x = "", y = "% Ocupacion Camas Disponibles")
         
     })
+    
+    output$sirs <- renderPlot({
+        
+        #The population is divided into compartments, with the assumption that every individual in the same compartment has the same characteristics
+        
+        
+        #S = suceptible
+        #I = Infectious 
+        #R = Recovered
+        #\xi is the rate which recovered individuals return to the susceptible statue due to loss of immunity.
+        
+        
+        sirs <- function(time, state, parameters) {
+            
+            with(as.list(c(state, parameters)), {
+                
+                n = S + I + R
+                
+                dS <- -(beta * S * I)/n + efe*R
+                dI <-  (beta * S * I)/n - gamma * I 
+                dR <-                     gamma * I - efe*R
+                
+                return(list(c(dS, dI, dR)))
+            })
+        }
+        
+        derivative_calc_func=function(t, x, vparameters){
+            S = x[1]  
+            I = x[2]  
+            R = x[3]  
+            
+            with(as.list(vparameters),{
+                
+                npop = S+I+R   
+                
+                
+                dS = -beta*S*I/npop  + efe*R          
+                dI = +beta*S*I/npop - gamma*I  
+                dR = +gamma*I - efe*R                  
+                
+                vout = c(dS,dI,dR)
+                list(vout)
+            })
+        }
+        
+        npop = 2700000
+        I_0 = 100
+        R_0 = 0
+        S_0 = npop-I_0-R_0
+        
+        ##################################################################################
+        # now the parameters of the model.  Note that in some posts on sherrytowers.com
+        # I refer to the recovery rate as k (here it is gamma), and the transmission
+        # rate as b (here is is beta).
+        #
+        # tbegin  is the begin time for the simulation (here we assume units of days)
+        # tend    is the time we want the simulation to end
+        #
+        # gamma=1/3   The recovery rate in units 1/days.  Note that 1/gamma is the
+        #             average recovery period.  For influenza,  this is quite short, but
+        #             for other diseases it can be quite long
+        # R0          This is the reproduction number of the disease.  For pandemic influenza
+        #             this has been found to be around 1.5
+        # beta        The transmission rate.  For the SIR model, mathematical analysis of
+        #             the model yields the relationship R0=beta/gamma
+        #             Thus if we know R0 and we know gamma, we can calculate beta
+        #
+        # vt          is the vector of time steps at which we want model estimates
+        ##################################################################################
+        tbegin = 0
+        tend   = 300
+        vt = seq(tbegin,tend,1)  
+        
+        #beta=1.99459e-06   
+        
+        
+        # fill named vectors with our parameter values and initial conditions
+        vparameters = c(gamma=1.82E-02,beta=(input$r0[1]*gamma)/npop,efe = input$efe[1])
+        inits = c(S=S_0,I=I_0,R=R_0)
+        
+        # uses the 4th order Runge-Kutta method to solve the system of ODE's described
+        
+        solved_model <-  as.data.frame(ode(inits, vt, derivative_calc_func, vparameters)) %>%
+            mutate(date =  as.Date("05-03-2020", format = "%d-%m-%Y" )+ time) 
+        
+        
+        ggplot(solved_model, aes(x=date, y=S)) +
+            geom_line() + 
+            xlab("Infected at Spain") +
+            scale_x_date(date_labels = "%b %d", date_breaks = "20 day") +
+            theme_minimal()
+        
+    })
+    
+    
+    
+    
+    
 }
 
 # Run the application
