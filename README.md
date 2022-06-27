@@ -1,6 +1,5 @@
 # Capacidad de Respuesta COVID-19 en España
 
-Para acceder al resultado de este código haz [click aquí.](https://jsameijeras.shinyapps.io/hospital-capacity/)
 
 Esta aplicación pretende ser una forma interactiva para estudiar la capacidad de los hospitales españoles de reaccionar ante la crisis de coronavirus en España. Hay dos cuestiones a priori que es importante tener en cuenta: 
 
